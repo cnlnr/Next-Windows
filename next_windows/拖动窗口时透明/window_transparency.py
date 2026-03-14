@@ -91,10 +91,14 @@ class WindowTransparency:
 
 def is_not_transparent(hwnd: int) -> bool:
     """
-    判断窗口是否【不具有透明样式】
+    判断窗口是否【当前不透明】（alpha == 255）
+    返回 True = 窗口是不透明的，可以变透明
+    返回 False = 窗口已经是半透明
     """
-    ex_style = ctypes.windll.user32.GetWindowLongPtrW(hwnd, -20)
-    return bool(ex_style & 0x00080000)
+    # 直接读取窗口当前透明度
+    alpha = ctypes.c_ubyte()
+    ctypes.windll.user32.GetLayeredWindowAttributes(hwnd, None, ctypes.byref(alpha), None)
+    return alpha.value != 255
 
 
 # ===================== 测试示例 =====================
