@@ -4,7 +4,7 @@ from next_windows.窗口区域扩展 import move_all
 # ------------------- 配置 -------------------
 MAX_RIGHT_EDGE = 1000      # 最右窗口的左上角x不能 > 这个值（实际为左移极限）
 MIN_LEFT_EDGE  = -1000     # 最左窗口的左上角x不能 < 这个值（实际为右移极限）
-
+step = 5                   # 过度动画步长
 PIXELS_PER_SCROLL = 450    # 滚轮一次（delta=1）的总移动像素
 # ------------------------------------------------
 
@@ -26,6 +26,6 @@ for delta in listen_taskbar_scroll():
     if new_offset < MIN_LEFT_EDGE:
         print("右侧已达极限")
         continue
-
-    move_all.move(move_this_time)
+    for i in range(step):
+        move_all.move(move_this_time // step)
     total_offset = new_offset
