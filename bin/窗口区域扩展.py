@@ -2,10 +2,10 @@ from next_windows.窗口区域扩展.taskbar_scroll import listen_taskbar_scroll
 from next_windows.窗口区域扩展 import move_all
 
 # ------------------- 配置 -------------------
-MAX_RIGHT_EDGE = 1000      # 最右窗口的左上角x不能 > 这个值（实际为左移极限）
-MIN_LEFT_EDGE  = -1000     # 最左窗口的左上角x不能 < 这个值（实际为右移极限）
+MAX_RIGHT_EDGE = 3000      # 最右窗口的左上角x不能 > 这个值（实际为左移极限）
+MIN_LEFT_EDGE  = -3000     # 最左窗口的左上角x不能 < 这个值（实际为右移极限）
 step = 5                   # 过度动画步长
-PIXELS_PER_SCROLL = 450    # 滚轮一次（delta=1）的总移动像素
+PIXELS_PER_SCROLL = 400    # 滚轮一次（delta=1）的总移动像素
 # ------------------------------------------------
 
 total_offset = 0           # 从程序启动开始的累计右移量（像素）
