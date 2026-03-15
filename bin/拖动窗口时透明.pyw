@@ -1,4 +1,4 @@
-from next_windows.拖动窗口时透明.window_transparency import WindowTransparency, is_not_transparent
+from next_windows.拖动窗口时透明.window_transparency import WindowTransparency, if_transparent
 from next_windows.拖动窗口时透明.wait_for_move_event import wait_for_move_event
 
 controller = WindowTransparency(target_alpha=200, restore_alpha=255, interval=0.003)
@@ -13,7 +13,7 @@ while True:
         # 刚刚恢复的窗口，允许再次拖动
         if hwnd == last_restored_hwnd:
             pass
-        elif not is_not_transparent(hwnd):
+        elif if_transparent(hwnd):
             print(f"[跳过] 窗口原本已是透明状态 HWND={hwnd}")
             continue
 

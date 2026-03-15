@@ -60,11 +60,11 @@ class WindowTransparency:
         self.set_transparent(hwnd, self.restore_alpha)
 
 
-def is_not_transparent(hwnd: int) -> bool:
-    """判断窗口是否不透明（可用于决定是否变透明）"""
+def if_transparent(hwnd: int) -> bool:
+    """判断窗口是否透明（可用于决定是否变不透明）"""
     alpha = ctypes.c_ubyte()
     user32.GetLayeredWindowAttributes(hwnd, None, ctypes.byref(alpha), None)
-    return alpha.value == 255
+    return alpha.value != 255
 
 
 # ===================== 测试示例 =====================
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     # 控制记事本
     notepad = win32gui.FindWindow("Notepad", None)
     if notepad:
-        print(is_not_transparent(notepad))
+        print(if_transparent(notepad))
         print("记事本变透明...")
         ctrl.set_transparent(notepad)
         time.sleep(1.2)
