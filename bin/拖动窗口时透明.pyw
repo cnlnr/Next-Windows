@@ -1,30 +1,35 @@
-from next_windows.拖动窗口时透明.window_transparency import WindowTransparency, is_not_transparent
+from next_windows.拖动窗口时透明.window_transparency import WindowTransparency, if_transparent
 from next_windows.拖动窗口时透明.wait_for_move_event import wait_for_move_event
 
-controller = None
-last_restored_hwnd = None  # 记录我们刚刚恢复完的窗口
+controller = WindowTransparency(target_alpha=200, restore_alpha=255, interval=0.003)
+active_hwnd = None
+last_restored_hwnd = None
 
 while True:
     print("Waiting for move/resize event...")
     is_start, hwnd = wait_for_move_event()
 
     if is_start:
-        # 刚刚被我们恢复的窗口，允许再次拖动（不跳过）
+        # 刚刚恢复的窗口，允许再次拖动
         if hwnd == last_restored_hwnd:
             pass
-        # 只有真正原本就透明、且不是我们恢复的窗口，才跳过
-        elif not is_not_transparent(hwnd):
+        elif if_transparent(hwnd):
             print(f"[跳过] 窗口原本已是透明状态 HWND={hwnd}")
             continue
 
-        if controller:
-            controller.restore_transparent()
-        controller = WindowTransparency(hwnd, 200, 255, 0.003)
-        controller.set_transparent()
+        # 恢复之前正在控制的窗口
+        if active_hwnd and active_hwnd != hwnd:
+            controller.restore(active_hwnd)
+        
+        print(f"[START] HWND={hwnd} 设置透明")
+        controller.set_transparent(hwnd)
+        active_hwnd = hwnd
         last_restored_hwnd = None
 
     else:
-        if controller:
-            controller.restore_transparent()
-            last_restored_hwnd = controller.hwnd  # 标记：这是我们刚恢复的
-            controller = None
+        # 拖动结束
+        if active_hwnd:
+            print(f"[END] HWND={active_hwnd} 恢复")
+            controller.restore(active_hwnd)
+            last_restored_hwnd = active_hwnd
+            active_hwnd = None
