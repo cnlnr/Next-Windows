@@ -1,8 +1,8 @@
-# Next-Windows
+# Next Windows
 
 将此项目克隆下来安装依赖后在bin目录运行你想要的代码
 
-此项目仅适用于Windows11系统
+此项目仅适用于 Windows11 系统
 
 ```shell
 pip install -e .

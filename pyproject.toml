@@ -5,6 +5,4 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "next_windows"
 version = "1"
-dependencies = [
-  "pywin32"
-]
+dependencies = ["pywin32", "pynput"]
