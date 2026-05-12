@@ -11,6 +11,7 @@ transparency_ctrl = WindowTransparency(
     interval=0.005       # 流畅的动画过渡
 )
 
+
 def main():
     """主循环：监听窗口拖动事件并控制透明度"""
     print("监听窗口拖动事件... (按 Ctrl+C 退出)")
@@ -18,10 +19,10 @@ def main():
         while True:
             # 阻塞等待拖动事件
             is_start, hwnd = wait_for_move_event()
-            
+
             if hwnd == 0:
                 continue
-            
+
             if is_start:
                 # 开始拖动 → 设置窗口透明（带动画）
                 print(f"窗口 {hwnd} 开始拖动，变为透明...")
@@ -33,6 +34,7 @@ def main():
                     transparency_ctrl.restore(hwnd)
     except KeyboardInterrupt:
         print("已退出监听")
+
 
 if __name__ == "__main__":
     main()

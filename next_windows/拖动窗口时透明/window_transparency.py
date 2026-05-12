@@ -49,10 +49,11 @@ class WindowTransparency:
         target = alpha if alpha is not None else self.target_alpha
         target = max(0, min(255, target))
         self._ensure_layered(hwnd)
-        
+
         current = ctypes.c_ubyte()
-        user32.GetLayeredWindowAttributes(hwnd, None, ctypes.byref(current), None)
-        
+        user32.GetLayeredWindowAttributes(
+            hwnd, None, ctypes.byref(current), None)
+
         self._start_anim(hwnd, target, current.value)
 
     def restore(self, hwnd: int):
@@ -82,4 +83,3 @@ if __name__ == "__main__":
         ctrl.set_transparent(notepad)
         time.sleep(1.2)
         ctrl.restore(notepad)
-

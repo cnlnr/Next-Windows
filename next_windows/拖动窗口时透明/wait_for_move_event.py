@@ -13,6 +13,7 @@ WinEventProcType = ctypes.WINFUNCTYPE(
     wintypes.LONG, wintypes.LONG, wintypes.DWORD, wintypes.DWORD
 )
 
+
 def wait_for_move_event():
     """阻塞直到检测到 MOVE/RESIZE 开始或结束事件。
 
