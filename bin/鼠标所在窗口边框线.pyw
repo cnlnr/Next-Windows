@@ -24,4 +24,7 @@ while True:
 
     # 情况 2：鼠标在空白处
     else:
+        if current_hwnd:
+            set_border_color(current_hwnd, DEFAULT_COLOR)
+            current_hwnd = 0
         time.sleep(0.1)
