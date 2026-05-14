@@ -16,6 +16,8 @@ pip install -e .
 
 记得回来看看是否有更新
 
+论坛：<https://github.com/cnlnr/Next-Windows/discussions>
+
 ## 小技巧
 
 - 文件管理器地址栏输入 `启动` 可快速跳转到启动目录
