@@ -6,3 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "next_windows"
 version = "1"
 dependencies = ["pywin32", "pynput"]
+
+[tool.setuptools.packages.find]
+# 这种写法最简洁，它会自动在当前目录寻找 next_windows 及其所有子包
+# 同时因为它明确指定了 include，所以会自动忽略 service 文件夹
+include = ["next_windows*"]
