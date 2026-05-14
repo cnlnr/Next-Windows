@@ -1,6 +1,10 @@
 # Next Windows
 
-此项目仅适用于 Windows11 系统
+[![GitHub stars](https://img.shields.io/github/stars/cnlnr/Next-Windows?style=social)](https://github.com/cnlnr/Next-Windows) [![star](https://gitee.com/LZY4/Next-Windows/badge/star.svg?theme=dark)](https://gitee.com/LZY4/Next-Windows/stargazers)
+
+优化 Windows11 使用体验 <span style="opacity: 0.1;"> ( 抄袭 Linux )</span>
+
+## 如何使用？
 
 将此项目克隆下来安装依赖后在service目录运行你想要的代码
 
