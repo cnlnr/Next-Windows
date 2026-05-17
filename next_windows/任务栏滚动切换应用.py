@@ -1,7 +1,6 @@
 # 文件名: taskbar_swiper.py
 import ctypes
 from ctypes import wintypes
-import time
 from pynput.keyboard import Key, Controller
 from pynput import mouse
 
@@ -15,18 +14,13 @@ user32 = ctypes.windll.user32
 
 
 class TaskbarScroll:
-    def __init__(self, sensitivity=1):
-        self.sensitivity = sensitivity
-        self.scroll_count = 0
-        self.last_time = 0
+    def __init__(self):
         self.listener = None
-
-        # 核心：将键盘控制器和状态锁统一绑定在类实例中
+        # 统一的键盘控制器与 Alt 状态锁
         self.kb = Controller()
         self.alt_pressed = False
 
     def __enter__(self):
-        # 启动鼠标监听
         self.listener = mouse.Listener(
             on_scroll=self._on_scroll,
             on_move=self._on_move
@@ -35,7 +29,6 @@ class TaskbarScroll:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        # 退出 with 块时彻底释放 Alt 并停止监听
         self.release_alt()
         if self.listener:
             self.listener.stop()
@@ -53,7 +46,7 @@ class TaskbarScroll:
         return l <= x <= r and t <= y <= b
 
     def press_alt(self):
-        """安全按下 Alt 键（避免重复发送按下指令）"""
+        """安全按下 Alt 键"""
         if not self.alt_pressed:
             self.kb.press(Key.alt)
             self.alt_pressed = True
@@ -75,17 +68,9 @@ class TaskbarScroll:
             self.release_alt()
             return
 
-        self.scroll_count += int(dy)
-        if abs(self.scroll_count) >= self.sensitivity:
-            now = time.time()
-            # 增加到 0.05 秒的冷却，防止部分鼠标滚轮太灵敏导致死锁
-            if now - self.last_time < 0.05:
-                return
-            self.last_time = now
-            reverse = self.scroll_count > 0
-            self.scroll_count = 0
-
-            # 触发子类实现的方法
+        # 只要滚轮动了（dy 不为 0），就立刻触发
+        if dy != 0:
+            reverse = dy > 0
             self.on_scroll(reverse)
 
     def on_scroll(self, reverse):
