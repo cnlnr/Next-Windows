@@ -1,6 +1,5 @@
 import ctypes
 import time
-import math
 import threading
 from ctypes import wintypes
 
@@ -26,10 +25,50 @@ class WINDOWPLACEMENT(ctypes.Structure):
     ]
 
 
-def execute_jump(hwnd, amplitude, duration):
-    """底层物理弹跳过渡"""
+def generate_pixel_path(amplitude, step_size, bounce_overshoot, bounce_count):
+    offsets = []
+
+    # 确保步长合法，防止死循环
+    step_size = max(1, step_size)
+
+    # 1. 冲顶
+    curr = 0
+    while curr < amplitude:
+        curr = min(amplitude, curr + step_size)
+        offsets.append(curr)
+
+    # 2. 回落
+    while curr > 0:
+        curr = max(0, curr - step_size)
+        offsets.append(curr)
+
+    # 3. 多级余震回弹
+    for i in range(bounce_count):
+        decay_factor = i + 1
+        current_overshoot = max(1, bounce_overshoot // decay_factor)
+
+        # 回弹下探（负向移动）
+        offset = 0
+        while offset < current_overshoot:
+            offset = min(current_overshoot, offset + step_size)
+            offsets.append(-offset)
+
+        # 回弹归位
+        while offset > 0:
+            offset = max(0, offset - step_size)
+            offsets.append(-offset)
+
+    return offsets
+
+
+def execute_jump(hwnd, amplitude, step_size, step_delay, bounce_overshoot, bounce_count):
+    # 确保跳动的是整个顶级大窗体，而不是内部的子控件
+    top_hwnd = user32.GetAncestor(hwnd, 2)
+    if not top_hwnd:
+        top_hwnd = hwnd
+
     rect = wintypes.RECT()
-    if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+    if not user32.GetWindowRect(top_hwnd, ctypes.byref(rect)):
         return
 
     x, y = rect.left, rect.top
@@ -37,21 +76,18 @@ def execute_jump(hwnd, amplitude, duration):
         return
 
     flags = 0x0001 | 0x0004 | 0x0010 | 0x0020
-    steps = 6
-    step_delay = duration / steps
+    offsets = generate_pixel_path(
+        amplitude, step_size, bounce_overshoot, bounce_count)
 
-    for i in range(steps + 1):
-        progress = i / steps
-        offset_ratio = math.sin(progress * math.pi)
-        current_offset = int(amplitude * offset_ratio)
-        user32.SetWindowPos(hwnd, 0, x, y - current_offset, 0, 0, flags)
-        time.sleep(step_delay)
+    for offset in offsets:
+        user32.SetWindowPos(top_hwnd, 0, x, y - offset, 0, 0, flags)
+        if step_delay > 0:
+            time.sleep(step_delay)
 
-    user32.SetWindowPos(hwnd, 0, x, y, 0, 0, flags)
+    user32.SetWindowPos(top_hwnd, 0, x, y, 0, 0, flags)
 
 
-def process_window_focus(hwnd, amplitude, duration, taskbar_delay):
-    """底层状态分流"""
+def process_window_focus(hwnd, amplitude, step_size, step_delay, bounce_overshoot, bounce_count, taskbar_delay, minimize_timeout, check_interval):
     class_name = ctypes.create_unicode_buffer(256)
     user32.GetClassNameW(hwnd, class_name, 256)
     if class_name.value in ["Shell_TrayWnd", "Progman", "WorkerW"]:
@@ -64,23 +100,24 @@ def process_window_focus(hwnd, amplitude, duration, taskbar_delay):
     is_from_minimize = user32.IsIconic(hwnd) or (wp.showCmd == 2)
 
     if is_from_minimize:
-        start_time = time.time()
-        while time.time() - start_time < 0.4:
+        t_start = time.time()
+        while time.time() - t_start < minimize_timeout:
             rect = wintypes.RECT()
             user32.GetWindowRect(hwnd, ctypes.byref(rect))
             if rect.top > -10000:
                 break
-            time.sleep(0.01)
+            time.sleep(check_interval)
         time.sleep(taskbar_delay)
 
-    execute_jump(hwnd, amplitude, duration)
+    execute_jump(hwnd, amplitude, step_size, step_delay,
+                 bounce_overshoot, bounce_count)
 
 
-def event_callback_handler(hwnd, amplitude, duration, taskbar_delay):
-    """由 main.py 的外壳回调直接导入并触发的多线程句柄"""
+def event_callback_handler(hwnd, amplitude, step_size, step_delay, bounce_overshoot, bounce_count, taskbar_delay, minimize_timeout, check_interval):
     if hwnd:
         threading.Thread(
             target=process_window_focus,
-            args=(hwnd, amplitude, duration, taskbar_delay),
+            args=(hwnd, amplitude, step_size, step_delay, bounce_overshoot,
+                  bounce_count, taskbar_delay, minimize_timeout, check_interval),
             daemon=True
         ).start()

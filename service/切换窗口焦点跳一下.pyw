@@ -9,22 +9,74 @@ ole32 = ctypes.windll.ole32
 def main():
     ole32.CoInitialize(None)
 
-    # ==================== 用户自定义参数配置面板 ====================
-    AMPLITUDE = 18     # 跳动幅度：单位像素 (px)
-    DURATION = 0.08   # 动画时间：单位秒 (s)
-    TASKBAR_DELAY = 0.13   # 任务栏延迟：最小化恢复时的盲憋等待时间 (s)
-    # =============================================================
+    # ==================== 工业级物理动画全参数控制面板 ====================
+    AMPLITUDE = 20        # 最大跳动高度 (px)
+    STEP_SIZE = 4          # 每次位移步长 (px) —— 值越大跳得越快越硬朗
+    STEP_DELAY = 0       # 像素位移阻尼 (s)
+    BOUNCE_OVERSHOOT = 0         # 回弹下探深度 (px)
+    BOUNCE_COUNT = 0         # 回弹余震次数
+    TASKBAR_DELAY = 0.13      # 任务栏补偿延迟 (s)
+    MINIMIZE_TIMEOUT = 0.4       # 最小化侦测超时 (s)
+    CHECK_INTERVAL = 0.01      # 状态扫描步长 (s)
+    # ====================================================================
 
-    # 利用闭包（Closure）机制，在纯函数架构下完美传递用户自定义参数
+    # 在启动时精准定位 Win+Tab 任务视图的系统组件句柄（兼容中英文系统环境）
+    task_view_hwnd = user32.FindWindowW("Windows.UI.Core.CoreWindow", "任务视图")
+    if not task_view_hwnd:
+        task_view_hwnd = user32.FindWindowW(
+            "Windows.UI.Core.CoreWindow", "Task View")
+
     def outer_callback(hWinEventHook, event, hwnd, idObject, idChild, dwEventThread, dwmsEventTime):
+        if not hwnd:
+            return
+
+        # 1. 纯净句柄黑名单熔断：如果是 Win+Tab 唤出的任务视图句柄，直接拦截
+        if hwnd == task_view_hwnd:
+            return
+
+        # 2. 判定鼠标左键是否按下 (VK_LBUTTON = 0x01)
+        is_lbutton_down = (user32.GetAsyncKeyState(0x01) & 0x8000) != 0
+
+        if is_lbutton_down:
+            # 获取当前鼠标光标的绝对坐标
+            pt = wintypes.POINT()
+            user32.GetCursorPos(ctypes.byref(pt))
+
+            # 探测鼠标正下方的窗口句柄
+            hwnd_under_mouse = user32.WindowFromPoint(pt)
+
+            if hwnd_under_mouse:
+                # 穿透获取鼠标下窗口的顶级祖先
+                top_mouse_hwnd = user32.GetAncestor(
+                    hwnd_under_mouse, 2)  # GA_ROOT = 2
+                if not top_mouse_hwnd:
+                    top_mouse_hwnd = hwnd_under_mouse
+
+                # 获取当前新激活窗口的顶级祖先
+                top_active_hwnd = user32.GetAncestor(hwnd, 2)
+                if not top_active_hwnd:
+                    top_active_hwnd = hwnd
+
+                # 如果按了左键，且鼠标下的窗口和新激活的窗口是同一个，判定为正常鼠标点击窗口内部，直接拦截
+                if top_mouse_hwnd == top_active_hwnd:
+                    return
+
+        # 此时已经完美分流：
+        # - 鼠标点击应用窗体内部 -> 被拦截 (return)
+        # - Win+Tab 呼出界面 -> 被黑名单句柄熔断 (return)
+        # - 键盘快捷键（Alt+Tab）、点击底部任务栏切换窗口、Win+D 返回桌面 -> 完美放行，正常跳动
         window_jump.event_callback_handler(
             hwnd,
             amplitude=AMPLITUDE,
-            duration=DURATION,
-            taskbar_delay=TASKBAR_DELAY
+            step_size=STEP_SIZE,
+            step_delay=STEP_DELAY,
+            bounce_overshoot=BOUNCE_OVERSHOOT,
+            bounce_count=BOUNCE_COUNT,
+            taskbar_delay=TASKBAR_DELAY,
+            minimize_timeout=MINIMIZE_TIMEOUT,
+            check_interval=CHECK_INTERVAL
         )
 
-    # 必须在函数内部保持住这个局部变量的全局引用，防止被 GC 回收
     global proc_instance
     proc_instance = window_jump.WinEventProcType(outer_callback)
 
@@ -37,9 +89,7 @@ def main():
         print("错误：无法注册 WinEvent 钩子。")
         return
 
-    print("windows_next 焦点引擎 [用户调参版] 已启动。")
-    print(
-        f"当前配置 -> 弹跳: {AMPLITUDE}px | 耗时: {DURATION}s | 任务栏补偿: {TASKBAR_DELAY}s")
+    print("windows_next 焦点引擎 [句柄级纯净拦截版] 已启动。")
 
     msg = wintypes.MSG()
     try:
