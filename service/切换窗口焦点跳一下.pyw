@@ -15,7 +15,7 @@ def main():
     STEP_DELAY = 0       # 像素位移阻尼 (s)
     BOUNCE_OVERSHOOT = 0         # 回弹下探深度 (px)
     BOUNCE_COUNT = 0         # 回弹余震次数
-    TASKBAR_DELAY = 0.13      # 任务栏补偿延迟 (s)
+    TASKBAR_DELAY = 0.12      # 任务栏补偿延迟 (s)
     MINIMIZE_TIMEOUT = 0.4       # 最小化侦测超时 (s)
     CHECK_INTERVAL = 0.01      # 状态扫描步长 (s)
     # ====================================================================
