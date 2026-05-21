@@ -2,7 +2,6 @@
 import time
 from pynput.keyboard import Key
 from next_windows.左上角 import create_hotzone_checker, create_key_trigger, mouse
-import time
 
 # 1. 定义检测器
 checker = create_hotzone_checker(threshold=10)
