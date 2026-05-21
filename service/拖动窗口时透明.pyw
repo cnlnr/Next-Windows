@@ -6,9 +6,9 @@ from next_windows.拖动窗口时透明.wait_for_move_event import wait_for_move
 # restore_alpha: 恢复后的透明度 (255为完全不透明)
 # interval: 动画帧间隔，越小越平滑
 transparency_ctrl = WindowTransparency(
-    target_alpha=235,    # 拖动时半透明
+    target_alpha=1,    # 拖动时半透明
     restore_alpha=255,   # 恢复完全不透明
-    interval=0.005       # 流畅的动画过渡
+    interval=0.0005       # 流畅的动画过渡
 )
 
 
