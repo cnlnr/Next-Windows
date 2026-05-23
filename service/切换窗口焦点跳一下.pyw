@@ -12,7 +12,7 @@ def main():
     # ==================== 工业级物理动画全参数控制面板 ====================
     AMPLITUDE = 20        # 最大跳动高度 (px)
     STEP_SIZE = 4          # 每次位移步长 (px) —— 值越大跳得越快越硬朗
-    STEP_DELAY = 0       # 像素位移阻尼 (s)
+    STEP_DELAY = 0.01       # 像素位移阻尼 (s)
     BOUNCE_OVERSHOOT = 0         # 回弹下探深度 (px)
     BOUNCE_COUNT = 0         # 回弹余震次数
     TASKBAR_DELAY = 0.12      # 任务栏补偿延迟 (s)
@@ -34,10 +34,13 @@ def main():
         if hwnd == task_view_hwnd:
             return
 
-        # 2. 判定鼠标左键是否按下 (VK_LBUTTON = 0x01)
+        # 2. 判定鼠标左键(0x01)、右键(0x02) 或 中键(0x04) 是否按下
         is_lbutton_down = (user32.GetAsyncKeyState(0x01) & 0x8000) != 0
+        is_rbutton_down = (user32.GetAsyncKeyState(0x02) & 0x8000) != 0
+        is_mbutton_down = (user32.GetAsyncKeyState(0x04) & 0x8000) != 0
 
-        if is_lbutton_down:
+        # 只要三键之一被按下，就进入窗口重合度探测逻辑
+        if is_lbutton_down or is_rbutton_down or is_mbutton_down:
             # 获取当前鼠标光标的绝对坐标
             pt = wintypes.POINT()
             user32.GetCursorPos(ctypes.byref(pt))
@@ -57,7 +60,7 @@ def main():
                 if not top_active_hwnd:
                     top_active_hwnd = hwnd
 
-                # 如果按了左键，且鼠标下的窗口和新激活的窗口是同一个，判定为正常鼠标点击窗口内部，直接拦截
+                # 如果按了任意鼠标键，且鼠标下的窗口和新激活的窗口是同一个，判定为正常鼠标点击窗口内部，直接拦截
                 if top_mouse_hwnd == top_active_hwnd:
                     return
 
