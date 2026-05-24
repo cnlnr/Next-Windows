@@ -4,15 +4,21 @@ import os
 import next_windows.切换窗口焦点跳一下 as window_jump
 
 user32 = ctypes.windll.user32
-kernel32 = ctypes.windll.kernel32
 ole32 = ctypes.windll.ole32
 
-# 预先分配好固定大小的缓冲区，避免回调内部高频分配、销毁内存
-CLASS_BUF = ctypes.create_unicode_buffer(256)
-EXE_PATH_BUF = ctypes.create_unicode_buffer(1024)
-
 # 常量定义
-PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+GWL_STYLE = -16
+GW_OWNER = 3
+WS_CHILD = 0x40000000
+WS_CAPTION = 0x00C00000  # (WS_BORDER | WS_DLGFRAME)
+
+# ====================================================================
+# 【高精追踪器】
+# last_valid_hwnd: 记录上一个真正跳过的大窗口
+# last_component_hwnd: 记录上一个触发了回调但被拦截的组件窗口(如右键菜单)
+# ====================================================================
+last_valid_hwnd = 0
+last_component_hwnd = 0
 
 
 def main():
@@ -29,10 +35,6 @@ def main():
     CHECK_INTERVAL = 0.01  # 状态扫描步长 (s)
     # ====================================================================
 
-    # 预先计算标准系统 explorer.exe 的绝对路径（转为小写方便后续比对）
-    system_root = os.environ.get("SystemRoot", "C:\\Windows")
-    explorer_target_path = os.path.join(system_root, "explorer.exe").lower()
-
     def outer_callback(
         hWinEventHook,
         event,
@@ -42,32 +44,50 @@ def main():
         dwEventThread,
         dwmsEventTime,
     ):
+        global last_valid_hwnd, last_component_hwnd
+
         if not hwnd:
             return
 
-        # 1. 极速类名筛选（复用全局缓冲区）
-        user32.GetClassNameW(hwnd, CLASS_BUF, 256)
+        # ====================================================================
+        # 1. 全维样式决策
+        # ====================================================================
+        style = user32.GetWindowLongW(hwnd, GWL_STYLE)
 
-        # 2. 命中目标类名后，才触发路径校验（完美短路，不影响普通窗口切换性能）
-        if CLASS_BUF.value == "XamlExplorerHostIslandWindow":
-            pid = wintypes.DWORD()
-            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        # 铁律拦截：凡是带 WS_CHILD 的真子控件（按钮/输入框），直接拦截
+        if style & WS_CHILD:
+            return
 
-            if pid.value:
-                h_process = kernel32.OpenProcess(
-                    PROCESS_QUERY_LIMITED_INFORMATION, False, pid
-                )
-                if h_process:
-                    size = wintypes.DWORD(len(EXE_PATH_BUF))
-                    # 高效获取进程完整路径
-                    success = kernel32.QueryFullProcessImageNameW(
-                        h_process, 0, EXE_PATH_BUF, ctypes.byref(size)
-                    )
-                    kernel32.CloseHandle(h_process)
+        # 行为拦截：如果没有标准标题栏，说明它是个组件窗口（右键菜单、下拉气泡等）
+        if not (style & WS_CAPTION):
+            owner_hwnd = user32.GetWindow(hwnd, GW_OWNER)
+            if owner_hwnd and owner_hwnd != hwnd:
+                # 【关键盯防】记录下这个正在作怪的组件句柄，供下一步回弹校验使用
+                last_component_hwnd = hwnd
+                return
 
-                    # 确认为系统合法的 explorer.exe 触发，执行熔断拦截
-                    if success and EXE_PATH_BUF.value.lower() == explorer_target_path:
-                        return
+        # ====================================================================
+        # 2. 血缘级防回弹熔断器（解决 Win+Tab 罢工 Bug）
+        # ====================================================================
+        # 如果上一步有组件登记在案，我们需要看看当前大窗口是不是它的“亲长辈”
+        if last_component_hwnd:
+            # 找到这个组件对应的顶级宿主窗口 (GA_ROOT = 2)
+            component_root = user32.GetAncestor(last_component_hwnd, 2)
+
+            # 如果组件的宿主，恰好就是当前拿焦点的窗口，说明这才是真正的“菜单关闭焦点回弹”
+            if component_root == hwnd:
+                # 成功拦截纯粹的回弹，且清空组件追踪，防止后续二次误伤
+                last_component_hwnd = 0
+                return
+
+            # 如果走到这，说明当前的 hwnd 和刚才的组件没有任何血缘关系（比如是通过 Win+Tab 切过来的）
+            # 我们主动清除过期组件标记，允许它放行跳动！
+            last_component_hwnd = 0
+
+        # 如果和组件无关，但和上次跳过的窗口一模一样（极其罕见的系统误触发重复焦点），也予以拦截
+        if hwnd == last_valid_hwnd and not last_component_hwnd:
+            return
+        # ====================================================================
 
         # 3. 判定鼠标左键(0x01)、右键(0x02) 或 中键(0x04) 是否按下
         is_lbutton_down = (user32.GetAsyncKeyState(0x01) & 0x8000) != 0
@@ -92,7 +112,11 @@ def main():
                 if top_mouse_hwnd == top_active_hwnd:
                     return
 
-        # 4. 放行其余正常切换事件
+        # ====================================================================
+        # 4. 确认放行：更新大窗口暂存器，触发物理动画
+        # ====================================================================
+        last_valid_hwnd = hwnd
+
         window_jump.event_callback_handler(
             hwnd,
             amplitude=AMPLITUDE,
@@ -122,7 +146,7 @@ def main():
         print("错误：无法注册 WinEvent 钩子。")
         return
 
-    print("windows_next 焦点引擎 [类名+路径安全校验版] 已启动。")
+    print("windows_next 焦点引擎 [血缘追踪防回弹版] 已成功合围启动。")
 
     msg = wintypes.MSG()
     try:
