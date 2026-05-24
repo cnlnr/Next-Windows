@@ -1,24 +1,28 @@
 import ctypes
 from ctypes import wintypes
+import os
 import next_windows.切换窗口焦点跳一下 as window_jump
 
 user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
 ole32 = ctypes.windll.ole32
+
+# ==================== 性能优化：预分配全局缓冲区 ====================
+# 避免在 WinEvent 高频回调内部进行内存分配与销毁
+CLASS_BUF = ctypes.create_unicode_buffer(256)
+EXE_PATH_BUF = ctypes.create_unicode_buffer(1024)
 
 # 常量定义
 GWL_STYLE = -16
-GW_OWNER = 3
 WS_CHILD = 0x40000000
-WS_CAPTION = 0x00C00000  # (WS_BORDER | WS_DLGFRAME)
-GA_ROOTOWNER = 3  # 追溯到最顶层的独立拥有者窗口（任务栏/大视窗视角的根源句柄）
+GA_ROOTOWNER = 3  # 追溯到最顶层的独立拥有者窗口
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 # ====================================================================
-# 【高精顶级视窗追踪器】
+# 【顶级视窗追踪器】
 # last_root_hwnd: 始终记录上一个真正触发了跳动动作的“顶级独立大窗口”句柄
-# last_component_hwnd: 记录上一个触发了回调但被拦截的组件窗口(如右键菜单、下拉气泡)
 # ====================================================================
 last_root_hwnd = 0
-last_component_hwnd = 0
 
 
 def main():
@@ -27,13 +31,17 @@ def main():
     # ==================== 工业级物理动画全参数控制面板 ====================
     AMPLITUDE = 20
     STEP_SIZE = 4
-    STEP_DELAY = 0.009
+    STEP_DELAY = 0.01
     BOUNCE_OVERSHOOT = 0
     BOUNCE_COUNT = 0
     TASKBAR_DELAY = 0.12
     MINIMIZE_TIMEOUT = 0.4
     CHECK_INTERVAL = 0.01
     # ====================================================================
+
+    # 预先计算标准系统 explorer.exe 的绝对路径（转为小写方便后续比对）
+    system_root = os.environ.get("SystemRoot", "C:\\Windows")
+    explorer_target_path = os.path.join(system_root, "explorer.exe").lower()
 
     def outer_callback(
         hWinEventHook,
@@ -44,55 +52,55 @@ def main():
         dwEventThread,
         dwmsEventTime,
     ):
-        global last_root_hwnd, last_component_hwnd
+        global last_root_hwnd
 
         if not hwnd:
             return
 
         # ====================================================================
-        # 1. 铁律拦截与组件窗拦截（老代码核心第一步）
+        # 新增 1. XamlExplorerHostIslandWindow 类名与路径安全熔断拦截
+        # ====================================================================
+        # 极速类名筛选（复用全局缓冲区）
+        user32.GetClassNameW(hwnd, CLASS_BUF, 256)
+
+        # 命中目标类名后，才触发路径校验（完美短路，不影响普通窗口切换性能）
+        if CLASS_BUF.value == "XamlExplorerHostIslandWindow":
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+
+            if pid.value:
+                h_process = kernel32.OpenProcess(
+                    PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+                )
+                if h_process:
+                    size = wintypes.DWORD(len(EXE_PATH_BUF))
+                    # 高效获取进程完整路径
+                    success = kernel32.QueryFullProcessImageNameW(
+                        h_process, 0, EXE_PATH_BUF, ctypes.byref(size)
+                    )
+                    kernel32.CloseHandle(h_process)
+
+                    # 确认为系统合法的 explorer.exe 触发，执行熔断拦截
+                    if (
+                        success
+                        and EXE_PATH_BUF.value.lower() == explorer_target_path
+                    ):
+                        return
+
+        # ====================================================================
+        # 2. 铁律拦截 (子窗口直接过滤)
         # ====================================================================
         style = user32.GetWindowLongW(hwnd, GWL_STYLE)
-
-        # 铁律拦截：凡是带 WS_CHILD 的真子控件（按钮/输入框），直接拦截
         if style & WS_CHILD:
             return
 
-        # 行为拦截：如果没有标准标题栏，说明它是个组件窗口（右键菜单、下拉气泡等）
-        if not (style & WS_CAPTION):
-            owner_hwnd = user32.GetWindow(hwnd, GW_OWNER)
-            if owner_hwnd and owner_hwnd != hwnd:
-                # 【关键盯防】记录下这个正在作怪的组件句柄，供下一步回弹校验使用
-                last_component_hwnd = hwnd
-                return
-
         # ====================================================================
-        # 2. 顶级大牌面抽取
+        # 3. 顶级大牌面抽取
         # ====================================================================
         # 剥离所有嵌套、独立悬浮插件控件的干扰，强行获取它所属的独立顶级大窗口
         current_root = user32.GetAncestor(hwnd, GA_ROOTOWNER)
         if not current_root:
             current_root = hwnd
-
-        # ====================================================================
-        # 3. 血缘级防回弹熔断器（无缝保留你的 Win+Tab 解决方案）
-        # ====================================================================
-        if last_component_hwnd:
-            # 找到这个组件对应的顶级宿主大窗口
-            component_root = user32.GetAncestor(
-                last_component_hwnd, GA_ROOTOWNER)
-            if not component_root:
-                component_root = last_component_hwnd
-
-            # 如果组件的宿主，恰好就是当前拿焦点的顶级窗口，说明这才是真正的“菜单关闭焦点回弹”
-            if component_root == current_root:
-                # 成功拦截纯粹的回弹，且清空组件追踪，防止后续二次误伤
-                last_component_hwnd = 0
-                return
-
-            # 如果走到这，说明当前的 current_root 和刚才的组件没有任何血缘关系（比如是通过 Win+Tab 切过来的）
-            # 主动清除过期组件标记，允许它放行跳动！
-            last_component_hwnd = 0
 
         # 如果提取出来的顶级老祖宗跟上一次跳过的一模一样，说明是在同软件内折腾，直接拦截
         if current_root == last_root_hwnd:
@@ -126,6 +134,7 @@ def main():
 
         # --------------------------------------------------------------------
         # 【模式 A】强制让顶级父窗口整体完成灵动一跳（免疫插件小方块乱抖）
+        # 若想切回此模式，请注释掉下方的【模式 B】，并将下方代码取消注释
         # --------------------------------------------------------------------
         # window_jump.event_callback_handler(
         #     current_root,
@@ -140,7 +149,7 @@ def main():
         # )
 
         # --------------------------------------------------------------------
-        # 【模式 B】谁当前拿焦点谁跳
+        # 【模式 B】谁当前拿焦点谁跳（可能是组件窗口跳,试试edge的Dark Reader插件）
         # --------------------------------------------------------------------
         window_jump.event_callback_handler(
             hwnd,
@@ -172,7 +181,9 @@ def main():
         print("错误：无法注册 WinEvent 钩子。")
         return
 
-    print("windows_next 焦点引擎 [顶级独立父窗+血缘防回弹版] 已成功融合启动。")
+    print(
+        "windows_next 焦点引擎 [顶级独立父窗+XamlIsland安全校验版] 已启动。"
+    )
 
     msg = wintypes.MSG()
     try:
