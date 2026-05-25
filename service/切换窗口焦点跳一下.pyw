@@ -43,6 +43,13 @@ def main():
     system_root = os.environ.get("SystemRoot", "C:\\Windows")
     explorer_target_path = os.path.join(system_root, "explorer.exe").lower()
 
+    # 预先计算通知中心与打开方式的绝对路径
+    shell_experience_target_path = os.path.join(
+        system_root, "systemapps", "shellexperiencehost_cw5n1h2txyewy", "shellexperiencehost.exe"
+    ).lower()
+    openwith_target_path = os.path.join(
+        system_root, "System32", "openwith.exe").lower()
+
     def outer_callback(
         hWinEventHook,
         event,
@@ -63,8 +70,13 @@ def main():
         # 极速类名筛选（复用全局缓冲区）
         user32.GetClassNameW(hwnd, CLASS_BUF, 256)
 
+        # 【新增拦截 A】虚拟桌面切换器类名，直接在这里秒杀拦截
+        if CLASS_BUF.value == "VirtualDesktopHotkeySwitcher":
+            return
+
         # 命中目标类名后，才触发路径校验（完美短路，不影响普通窗口切换性能）
-        if CLASS_BUF.value == "XamlExplorerHostIslandWindow":
+        # 【老代码扩充】加入 Windows.UI.Core.CoreWindow 拦截判断，共用路径查询通道
+        if CLASS_BUF.value == "XamlExplorerHostIslandWindow" or CLASS_BUF.value == "Windows.UI.Core.CoreWindow":
             pid = wintypes.DWORD()
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
 
@@ -80,12 +92,30 @@ def main():
                     )
                     kernel32.CloseHandle(h_process)
 
-                    # 确认为系统合法的 explorer.exe 触发，执行熔断拦截
-                    if (
-                        success
-                        and EXE_PATH_BUF.value.lower() == explorer_target_path
-                    ):
-                        return
+                    if success:
+                        current_exe_path = EXE_PATH_BUF.value.lower()
+
+                        # 确认为系统合法的 explorer.exe 触发，执行熔断拦截
+                        if CLASS_BUF.value == "XamlExplorerHostIslandWindow" and current_exe_path == explorer_target_path:
+                            return
+
+                        # 【新增拦截 B】确认为通知中心进程发出的 CoreWindow，执行熔断拦截
+                        if CLASS_BUF.value == "Windows.UI.Core.CoreWindow" and current_exe_path == shell_experience_target_path:
+                            return
+
+        # 【新增拦截 C】由于 OpenWith 顶级类名不固定，在其进入子窗口拦截前，直接通过 PID 穿透检测其路径
+        pid_ow = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid_ow))
+        if pid_ow.value:
+            h_proc_ow = kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, pid_ow)
+            if h_proc_ow:
+                size_ow = wintypes.DWORD(len(EXE_PATH_BUF))
+                success_ow = kernel32.QueryFullProcessImageNameW(
+                    h_proc_ow, 0, EXE_PATH_BUF, ctypes.byref(size_ow))
+                kernel32.CloseHandle(h_proc_ow)
+                if success_ow and EXE_PATH_BUF.value.lower() == openwith_target_path:
+                    return
 
         # ====================================================================
         # 2. 铁律拦截 (子窗口直接过滤)
