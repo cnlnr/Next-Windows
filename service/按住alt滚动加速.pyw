@@ -25,7 +25,7 @@ def set_sys_scroll_lines(lines_count):
 
 # 1. 备份你电脑当前的默认滚动速度（通常是 3）
 DEFAULT_LINES = get_sys_scroll_lines()
-ACCEL_LINES = 20  # 按住 Alt 时，滚一下相当于滚 20 行（可自由调节）
+ACCEL_LINES = 15  # 按住 Alt 时，滚一下相当于滚 15 行（可自由调节）
 
 print(f"系统当前默认滚动行数: {DEFAULT_LINES}")
 print("服务已启动... 侦测中，请试着按住 Alt 并滚动任意窗口（如浏览器、代码编辑器）")
