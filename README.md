@@ -4,7 +4,7 @@
 
 优化 Windows11 使用体验，类似Linux
 
-这个项目已重构：[https://gitee.com/LZY4/windos](https://github.com/cnlnr/Next-Windows/)
+这个项目已重构：https://github.com/cnlnr/windos
 
 ## 如何使用？
 
