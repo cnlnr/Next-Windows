@@ -4,6 +4,8 @@
 
 优化 Windows11 使用体验，类似Linux
 
+这个项目已重构：[https://gitee.com/LZY4/windos](https://github.com/cnlnr/Next-Windows/)
+
 ## 如何使用？
 
 将此项目克隆下来安装依赖后在service目录运行你想要的代码
